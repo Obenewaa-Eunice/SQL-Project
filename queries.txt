@@ -1,0 +1,103 @@
+/*Query 1 – query used for first insight */
+
+SELECT title, SUM(amount) total_amount, rental_duration
+FROM rental r
+JOIN payment p
+ON r.rental_id = p.rental_id
+JOIN inventory i
+ON r.inventory_id = i.inventory_id
+JOIN film f
+ON i.film_id = f.film_id
+GROUP BY title, rental_duration
+ORDER BY total_amount DESC
+LIMIT 10;
+
+
+/*Query 2 – query used for second insight */
+
+SELECT  city, amount, name AS category_name
+FROM address a
+JOIN city c
+ON a.city_id = c.city_id
+JOIN staff s
+ON a.address_id = s.address_id
+JOIN payment p
+ON s.staff_id = p.staff_id
+JOIN rental r
+ON p.rental_id = r.rental_id
+JOIN inventory i
+ON r.inventory_id = i.inventory_id
+JOIN film f
+ON i.film_id = f.film_id
+JOIN film_category fc
+ON f.film_id = fc.film_id
+JOIN category ca
+ON fc.category_id = ca.category_id
+WHERE amount >= (SELECT AVG(amount)
+                 FROM payment)
+GROUP BY c.city, category_name, p.amount
+ORDER BY p.amount DESC;
+
+
+/*Query 3 – query used for third insight */
+
+WITH CTE_categorycity AS
+(SELECT  city, SUM(amount) AS total_amount, name AS category_name
+FROM address a
+JOIN city c
+ON a.city_id = c.city_id
+JOIN staff s
+ON a.address_id = s.address_id
+JOIN payment p
+ON s.staff_id = p.staff_id
+JOIN rental r
+ON p.rental_id = r.rental_id
+JOIN inventory i
+ON r.inventory_id = i.inventory_id
+JOIN film f
+ON i.film_id = f.film_id
+JOIN film_category fc
+ON f.film_id = fc.film_id
+JOIN category ca
+ON fc.category_id = ca.category_id
+GROUP BY city, category_name
+ORDER BY total_amount DESC
+ )
+SELECT SUM(total_amount) AS sum_total_amount, category_name
+FROM CTE_categorycity
+WHERE category_name = 'Sports' OR category_name = 'Sci-Fi' OR category_name = 'Drama' 
+ OR category_name = 'Documentary' OR category_name = 'New' OR category_name = 'Horror' 
+ OR category_name = 'Travel' OR category_name = 'Music'
+GROUP BY cte_categorycity.category_name
+ORDER BY category_name;
+
+
+/*Query 4 – query used for fourth insight */
+
+WITH total_category_city AS (
+  SELECT city, 
+    name AS category_name,
+    SUM(amount) AS total_amount,
+    ROW_NUMBER() OVER (PARTITION BY city ORDER BY SUM(amount) DESC) AS city_ranking
+  FROM 
+    address a
+    JOIN city c ON a.city_id = c.city_id
+    JOIN staff s ON a.address_id = s.address_id
+    JOIN payment p ON s.staff_id = p.staff_id
+    JOIN rental r ON p.rental_id = r.rental_id
+    JOIN inventory i ON r.inventory_id = i.inventory_id
+    JOIN film f ON i.film_id = f.film_id
+    JOIN film_category fc ON f.film_id = fc.film_id
+    JOIN category ca ON fc.category_id = ca.category_id
+  GROUP BY city, category_name
+)
+SELECT 
+  category_name, city, 
+  SUM(total_amount) AS sum_total_amount
+FROM 
+  total_category_city
+WHERE 
+  city_ranking <= 5 
+  AND category_name IN ('Animation', 'Children')
+GROUP BY category_name, city
+ORDER BY category_name;
